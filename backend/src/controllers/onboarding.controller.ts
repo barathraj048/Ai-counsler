@@ -1,0 +1,46 @@
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
+
+export const storeOnboardingAnswer = async (req: Request, res: Response) => {
+  try {
+    const { userId, questionId, questionText, answer } = req.body;
+
+    if (!userId || !questionId || !questionText || !answer) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    await prisma.onboardingAnswer.create({
+      data: {
+        userId,
+        questionId,
+        questionText,
+        answer: JSON.stringify(answer),
+      },
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Store onboarding error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const completeOnboarding = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: { onboardingCompleted: true },
+      create: {
+        id: userId,
+        onboardingCompleted: true,
+      },
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Complete onboarding error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
