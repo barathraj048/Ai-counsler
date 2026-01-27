@@ -60,7 +60,7 @@ export default function QuestionRenderer({ question, onSubmit, isLoading }: Ques
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={question.placeholder || 'Type your answer...'}
             disabled={isLoading}
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
             autoFocus
           />
         )}
@@ -72,7 +72,7 @@ export default function QuestionRenderer({ question, onSubmit, isLoading }: Ques
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={question.placeholder || 'Enter a number...'}
             disabled={isLoading}
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
             autoFocus
           />
         )}
@@ -82,7 +82,7 @@ export default function QuestionRenderer({ question, onSubmit, isLoading }: Ques
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             disabled={isLoading}
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-gray-900"
             autoFocus
           >
             <option value="">Select an option...</option>
