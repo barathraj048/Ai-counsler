@@ -1,14 +1,16 @@
+// frontend/app/dashboard/page.tsx
+
 import Navbar from '@/components/Navbar';
 import ProfileStrengthCard from '@/components/ProfileStrengthCard';
 import StageIndicator from '@/components/StageIndicator';
 import TodoList from '@/components/TodoList';
-import { getDashboardForUser } from './actions';
+import { fetchDashboard } from '@/lib/api';
 
 export default async function DashboardPage() {
-  // ⚠️ Replace later with real auth user
-  const userId = 'user_123';
+  const userId = 'user_123'; // 🔁 replace later with auth
 
-  const dashboard = await getDashboardForUser(userId);
+  const response = await fetchDashboard(userId);
+  const dashboard = response.data;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -60,7 +62,7 @@ export default async function DashboardPage() {
           <StageIndicator currentStage={dashboard.currentStage} />
 
           {/* Right */}
-          <TodoList tasks={dashboard.todos} />
+          <TodoList tasks={dashboard.todos} userId={userId} />
         </div>
       </main>
     </div>
