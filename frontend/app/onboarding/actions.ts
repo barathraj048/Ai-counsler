@@ -1,10 +1,14 @@
-// FILE: app/onboarding/actions.ts
-
 'use server';
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
+
+// 🎯 Product rules
+const MIN_QUESTIONS = 12;
+const MAX_QUESTIONS = 18;
 
 interface Question {
   id: string;
@@ -34,7 +38,9 @@ export async function submitAnswerAction({
       [question.id]: answer,
     };
 
-    // 2️⃣ Store Q+A in backend (localhost:4000)
+    const answeredCount = Object.keys(updatedAnswers).length;
+
+    // 2️⃣ Persist answer (best-effort)
     try {
       await fetch('http://localhost:4000/api/onboarding/answer', {
         method: 'POST',
@@ -46,36 +52,41 @@ export async function submitAnswerAction({
           answer,
         }),
       });
-    } catch (error) {
-      console.error('Failed to store answer in backend:', error);
-      // Continue even if backend fails (for demo purposes)
+    } catch (err) {
+      console.error('Failed to store onboarding answer:', err);
     }
 
-    // 3️⃣ Ask Gemini for next question
-    const geminiResponse = await getNextQuestionFromGemini(updatedAnswers);
-
-    // 4️⃣ Gemini says onboarding done
-    if (geminiResponse.completed) {
-      try {
-        await fetch('http://localhost:4000/api/onboarding/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
-        });
-      } catch (error) {
-        console.error('Failed to mark onboarding complete:', error);
-      }
-
-      return { completed: true, updatedAnswers };
+    // 🛑 HARD STOP — never exceed MAX_QUESTIONS
+    if (answeredCount >= MAX_QUESTIONS) {
+      await markOnboardingComplete(userId);
+      return {
+        completed: true,
+        updatedAnswers,
+      };
     }
 
-    // 5️⃣ Return next question to frontend
+    // 3️⃣ Ask Groq for next step
+    const groqResponse = await getNextQuestionFromGroq(
+      updatedAnswers,
+      answeredCount
+    );
+
+    // 4️⃣ LLM says onboarding is complete
+    if (groqResponse.completed) {
+      await markOnboardingComplete(userId);
+      return {
+        completed: true,
+        updatedAnswers,
+      };
+    }
+
+    // 5️⃣ Continue onboarding
     return {
       completed: false,
-      nextQuestion: geminiResponse.nextQuestion,
+      nextQuestion: groqResponse.nextQuestion,
       updatedAnswers,
-      totalQuestions: geminiResponse.estimatedTotal || 15,
-      currentQuestionNumber: Object.keys(updatedAnswers).length + 1,
+      totalQuestions: MAX_QUESTIONS,
+      currentQuestionNumber: answeredCount + 1,
     };
   } catch (error) {
     console.error('Error in submitAnswerAction:', error);
@@ -83,87 +94,125 @@ export async function submitAnswerAction({
   }
 }
 
-async function getNextQuestionFromGemini(answers: Record<string, any>) {
-  const prompt = `You are an AI study abroad counselor conducting a dynamic onboarding interview.
+/* ----------------------------- */
+/* --------- HELPERS ----------- */
+/* ----------------------------- */
 
-Collected answers so far:
+async function markOnboardingComplete(userId: string) {
+  try {
+    await fetch('http://localhost:4000/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+  } catch (err) {
+    console.error('Failed to mark onboarding complete:', err);
+  }
+}
+
+async function getNextQuestionFromGroq(
+  answers: Record<string, any>,
+  answeredCount: number
+) {
+  const prompt = `You are an AI study abroad counselor conducting a structured onboarding interview.
+
+Progress:
+- Questions answered so far: ${answeredCount}
+- Minimum required questions: ${MIN_QUESTIONS}
+- Maximum allowed questions: ${MAX_QUESTIONS}
+
+Collected answers:
 ${JSON.stringify(answers, null, 2)}
 
-Your task:
-1. Analyze the answers collected
-2. Decide the single most important next question to ask
-3. Avoid asking redundant questions
-4. Ask follow-up questions based on previous answers
-5. If you have collected sufficient information (academic background, study goals, budget, test scores, preferred countries), respond with completed: true
+RULES (STRICT):
+1. Ask ONLY high-signal questions
+2. Avoid nice-to-have or redundant questions
+3. If core information is collected AND answeredCount >= ${MIN_QUESTIONS}, respond with completed: true
+4. NEVER exceed ${MAX_QUESTIONS} questions
+5. If answeredCount >= ${MAX_QUESTIONS}, respond with completed: true immediately
 
-Essential information to collect:
-- Current education level and major
-- GPA/grades
-- Target degree and field of study
+Core information required:
+- Education level & major
+- GPA / grades
+- Target degree & field
 - Preferred countries
 - Budget range
-- Test scores status (IELTS/TOEFL, GRE/GMAT)
+- Test scores (IELTS/TOEFL, GRE/GMAT)
 - Intake year
 - Funding type
 
-Respond ONLY in this exact JSON format:
+Respond ONLY in JSON.
+
+If asking a question:
 {
   "completed": false,
   "nextQuestion": {
     "id": "unique_question_id",
-    "text": "Your question here?",
+    "text": "Question text?",
     "type": "text|select|multiselect|number",
-    "options": ["option1", "option2"] // only if type is select or multiselect
-  },
-  "estimatedTotal": 15
+    "options": ["option1", "option2"]
+  }
 }
 
-OR if onboarding is complete:
+If finished:
 {
   "completed": true
 }
 `;
 
   try {
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash-8b'  // This one should work!
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a strict JSON-only API. Do not include markdown or explanations.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
     });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Clean the response (remove markdown code blocks if present)
-    const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    return JSON.parse(cleanedText);
+
+    const content = completion.choices[0]?.message?.content?.trim();
+
+    if (!content) {
+      throw new Error('Empty response from Groq');
+    }
+
+    return JSON.parse(content);
   } catch (error) {
-    console.error('Gemini API error:', error);
-    
-    // Fallback: Return a default question if Gemini fails
-    const answeredCount = Object.keys(answers).length;
-    
-    if (answeredCount >= 10) {
+    console.error('Groq API error:', error);
+
+    // 🔒 Absolute safety fallback
+    if (answeredCount >= MIN_QUESTIONS) {
       return { completed: true };
     }
-    
-    // Return fallback question
+
     return {
       completed: false,
       nextQuestion: {
         id: `fallback_${answeredCount}`,
-        text: 'Please tell us more about your study abroad goals',
+        text: 'Please tell us more about your study abroad goals.',
         type: 'text',
       },
-      estimatedTotal: 15,
     };
   }
 }
 
-export async function getInitialQuestion() {
+export async function getInitialQuestion(): Promise<Question> {
   return {
-    id: 'welcome',
+    id: 'education_level',
     text: "Let's start with the basics. What is your current level of education?",
     type: 'select',
-    options: ['High School', 'Undergraduate (Bachelor)', 'Graduate (Master)', 'Doctoral (PhD)'],
+    options: [
+      'High School',
+      'Undergraduate (Bachelor)',
+      'Graduate (Master)',
+      'Doctoral (PhD)',
+    ],
   };
 }

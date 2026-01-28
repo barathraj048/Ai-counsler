@@ -7,18 +7,95 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/**
+ * --------------------
+ */
+/**
+ * USER
+ */
+/**
+ * --------------------
+ */
+model User {
+  id                  String  @id
+  onboardingCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  onboardingAnswers OnboardingAnswer[]
+  dashboardSnapshot DashboardSnapshot?
+  dashboardTodos    DashboardTodo[] // ✅ FIXED (inverse relation)
+}
+
+/**
+ * --------------------
+ */
+/**
+ * ONBOARDING ANSWER
+ */
+/**
+ * --------------------
+ */
 model OnboardingAnswer {
   id           String   @id @default(uuid())
   userId       String
   questionId   String
   questionText String
-  answer       String
+  answer       String // JSON string
   createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-model User {
-  id                   String   @id
-  onboardingCompleted  Boolean  @default(false)
+/**
+ * --------------------
+ */
+/**
+ * DASHBOARD SNAPSHOT
+ */
+/**
+ * --------------------
+ */
+model DashboardSnapshot {
+  id String @id @default(uuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Raw LLM output (single source of truth)
+  dashboardJson Json
+
+  // Extracted fields for fast access
+  profileStrength Int
+  currentStage    String
+
+  generatedAt DateTime @default(now())
+  version     Int      @default(1)
+}
+
+/**
+ * --------------------
+ */
+/**
+ * DASHBOARD TODO
+ */
+/**
+ * --------------------
+ */
+model DashboardTodo {
+  id String @id @default(uuid())
+
+  userId    String
+  title     String
+  priority  String // high | medium | low
+  completed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

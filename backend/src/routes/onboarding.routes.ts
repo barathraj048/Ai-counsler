@@ -6,7 +6,7 @@ import {
 
 const router = Router();
 
-router.post('/', storeOnboardingAnswer);
+router.post('/answer', storeOnboardingAnswer);
 router.post('/complete', completeOnboarding);
 
 export default router;
