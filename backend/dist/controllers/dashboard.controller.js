@@ -215,74 +215,149 @@ export async function shortlistUniversities(req, res) {
         if (!userId || !universities || !priorities || !userProfile) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+        if (!Array.isArray(universities) || universities.length === 0) {
+            return res.status(400).json({ error: 'Universities must be a non-empty array' });
+        }
+        // Determine primary priority
+        const priorityList = [
+            { name: 'cost', value: priorities.cost },
+            { name: 'ranking', value: priorities.ranking },
+            { name: 'location', value: priorities.location },
+            { name: 'career', value: priorities.career }
+        ].sort((a, b) => b.value - a.value);
+        const primaryPriority = priorityList[0] || { name: 'cost', value: 0 };
+        const secondaryPriority = priorityList[1] || { name: 'ranking', value: 0 };
         const prompt = `
-You are a university shortlisting system. Apply strict filtering to reduce options to 3-6 universities.
+You are a university shortlisting AI. You MUST filter and rank based on user priorities.
 
-User Profile:
-${JSON.stringify(userProfile, null, 2)}
+USER PROFILE:
+- Field: ${userProfile.field}
+- Budget: ${userProfile.budget}
+- Target Degree: ${userProfile.targetDegree}
+- Intake: ${userProfile.intake}
+${userProfile.gpa ? `- GPA: ${userProfile.gpa}` : ''}
+${userProfile.testScores ? `- Test Scores: ${JSON.stringify(userProfile.testScores)}` : ''}
 
-User Priorities (0-100):
-- Cost sensitivity: ${priorities.cost}
-- Ranking importance: ${priorities.ranking}
-- Location preference: ${priorities.location}
-- Career outcomes focus: ${priorities.career}
+PRIORITY WEIGHTS (0-100, HIGHER = MORE IMPORTANT):
+- Cost Sensitivity: ${priorities.cost}/100 ${priorities.cost > 70 ? '⚠️ CRITICAL FACTOR' : ''}
+- Ranking Importance: ${priorities.ranking}/100 ${priorities.ranking > 70 ? '⚠️ CRITICAL FACTOR' : ''}
+- Location Preference: ${priorities.location}/100 ${priorities.location > 70 ? '⚠️ CRITICAL FACTOR' : ''}
+- Career Outcomes: ${priorities.career}/100 ${priorities.career > 70 ? '⚠️ CRITICAL FACTOR' : ''}
 
-Available Universities:
+PRIMARY PRIORITY: ${primaryPriority.name.toUpperCase()} (${primaryPriority.value}/100)
+SECONDARY PRIORITY: ${secondaryPriority.name.toUpperCase()} (${secondaryPriority.value}/100)
+
+AVAILABLE UNIVERSITIES:
 ${JSON.stringify(universities, null, 2)}
 
-Filter based on:
-1. Eligibility (GPA, test scores if available)
-2. Budget fit (based on cost sensitivity)
-3. Priority alignment
-4. Feasibility (acceptance rates, competitiveness)
+FILTERING RULES (APPLY STRICTLY):
 
-Rank the shortlist by user priority order. Return 3-6 universities.
+1. **IF cost sensitivity ≥ 70**: 
+   - ONLY include universities with tuition ≤ $40,000/year
+   - Prioritize cheapest options first
+   - Reject expensive universities regardless of ranking
 
-For each shortlisted university, explain:
-- Why it's shortlisted
-- Key trade-offs
-- Fit score (0-100)
+2. **IF ranking importance ≥ 70**:
+   - ONLY include universities ranked ≤ 100
+   - Prioritize top-ranked universities first
+   - Reject lower-ranked universities regardless of cost
 
-Respond ONLY in valid JSON:
+3. **IF location preference ≥ 70**:
+   - Prioritize diverse locations or specific regions mentioned
+   - Consider climate, culture, proximity preferences
+
+4. **IF career outcomes ≥ 70**:
+   - Prioritize universities with strong placement rates
+   - Focus on industry connections and internship opportunities
+
+MATCHING ALGORITHM:
+- Weight each university by PRIMARY priority first (${primaryPriority.name})
+- Then by SECONDARY priority (${secondaryPriority.name})
+- Return 3-6 universities that BEST match the priority distribution
+- Each university must score ≥ 60 fit score to be included
+
+OUTPUT FORMAT (JSON ONLY):
 {
   "shortlist": [
     {
-      "id": string,
-      "name": string,
-      "country": string,
+      "id": "string",
+      "name": "string",
+      "country": "string",
       "ranking": number,
-      "tuitionFee": string,
-      "programs": string[],
-      "matchReason": string (why shortlisted),
-      "programRelevance": string (key advantages),
-      "fitScore": number,
-      "tradeoffs": string
+      "tuitionFee": "string",
+      "programs": ["string"],
+      "matchReason": "Explain how this university aligns with PRIMARY priority: ${primaryPriority.name}",
+      "programRelevance": "Key program advantages",
+      "fitScore": number (0-100, weighted by priorities),
+      "tradeoffs": "What user sacrifices by choosing this"
     }
   ],
-  "reasoning": string (overall explanation)
+  "reasoning": "Explain why these universities match the priority profile: ${primaryPriority.name}=${primaryPriority.value}, ${secondaryPriority.name}=${secondaryPriority.value}"
 }
+
+IMPORTANT: 
+- If cost=100, ranking should be IGNORED unless universities are equally cheap
+- If ranking=100, cost should be IGNORED unless universities are equally ranked
+- The shortlist MUST differ based on priority changes
+- Higher priority value = stronger filter weight
 `;
+        console.log('🎯 Request ID:', userId);
+        console.log('📊 Priorities:', priorities);
+        console.log('🏆 Primary:', primaryPriority.name, primaryPriority.value);
         const completion = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             messages: [
-                { role: 'system', content: 'JSON only. No markdown.' },
+                {
+                    role: 'system',
+                    content: 'You are a university ranking system. Follow priority weights EXACTLY. Return ONLY valid JSON.'
+                },
                 { role: 'user', content: prompt },
             ],
-            temperature: 0.3,
+            temperature: 0.5, // Increased for variation
+            response_format: { type: 'json_object' },
         });
         const content = completion.choices[0]?.message?.content;
-        if (!content)
+        if (!content) {
             throw new Error('Empty LLM response');
-        const result = JSON.parse(content);
+        }
+        let cleanedContent = content.trim();
+        if (cleanedContent.startsWith('```json')) {
+            cleanedContent = cleanedContent.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+        }
+        else if (cleanedContent.startsWith('```')) {
+            cleanedContent = cleanedContent.replace(/```\n?/g, '');
+        }
+        let result;
+        try {
+            result = JSON.parse(cleanedContent);
+        }
+        catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            console.error('Raw LLM Response:', content);
+            throw new Error('Invalid JSON response from LLM');
+        }
+        if (!result.shortlist || !Array.isArray(result.shortlist)) {
+            throw new Error('Invalid response structure: missing shortlist array');
+        }
+        console.log('✅ Shortlisted:', result.shortlist.length, 'universities');
+        console.log('📝 Reasoning:', result.reasoning);
         return res.json({
             success: true,
             shortlist: result.shortlist,
-            reasoning: result.reasoning
+            reasoning: result.reasoning || 'No reasoning provided',
+            appliedPriorities: {
+                primary: primaryPriority.name,
+                secondary: secondaryPriority.name
+            }
         });
     }
     catch (error) {
-        console.error('Error shortlisting universities:', error);
-        return res.status(500).json({ error: 'Failed to shortlist universities' });
+        console.error('❌ Error shortlisting universities:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorDetails = process.env.NODE_ENV === 'development'
+            ? { error: errorMessage, stack: error instanceof Error ? error.stack : undefined }
+            : { error: 'Failed to shortlist universities' };
+        return res.status(500).json(errorDetails);
     }
 }
 /**
