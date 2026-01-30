@@ -1,112 +1,70 @@
-// frontend/app/dashboard/page.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
 
 import Navbar from '@/components/Navbar';
 import ProfileStrengthCard from '@/components/ProfileStrengthCard';
 import StageIndicator from '@/components/StageIndicator';
-import TodoList from '@/components/DashboardTodoList';
+import UnifiedTodoList from '@/components/UnifiedTodoList';
 import AICounselor from '@/components/AICounselor';
+
 import { fetchDashboard } from '@/lib/api';
 
-export default async function DashboardPage() {
-  const userId = 'user_123'; // 🔁 replace later with auth
+interface DashboardData {
+  summary: any;
+  allStages: any[];
+  todos: any[];
+  profileStrength: number;
+  currentStage: string;
+}
 
-  try {
-    const response = await fetchDashboard(userId);
-    const dashboard = response.data;
+export default function DashboardPage() {
+  const userId = 'user_123'; // 🔁 replace later with real auth
 
-    // Debug logging (remove in production)
-    console.log('Dashboard data:', dashboard);
-    console.log('All stages:', dashboard.allStages);
-    console.log('Current stage:', dashboard.currentStage);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-    // Safer data access with fallbacks
-    const userProfile = dashboard?.summary || {};
-    const allStages = dashboard?.allStages || [];
-    const todos = dashboard?.todos || [];
-    const profileStrength = dashboard?.profileStrength || 0;
-    const currentStage = dashboard?.currentStage || 'profile-setup';
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const res = await fetchDashboard(userId);
+        setDashboard(res.data);
+      } catch (err) {
+        console.error('Dashboard load failed:', err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    loadDashboard();
+  }, [userId]);
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <Navbar />
-
         <main className="max-w-7xl mx-auto px-6 py-12">
-          {/* Header */}
-          <div className="mb-12">
-            <h1 className="text-4xl font-semibold text-gray-900 mb-3 tracking-tight">
-              Welcome back 👋
-            </h1>
-            <p className="text-lg text-gray-600">
-              Here's your study abroad journey progress
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column */}
-            <div className="space-y-6">
-              <ProfileStrengthCard 
-                strength={profileStrength} 
-                userId={userId}
-                currentProfile={userProfile}
-              />
-
-              <div className="bg-white/80 backdrop-blur-xl p-8 rounded-2xl border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                <h3 className="text-xl font-semibold mb-6 text-gray-900">Profile Summary</h3>
-
-                <div className="space-y-4 text-sm">
-                  <Row label="Target Degree" value={userProfile?.targetDegree || 'Not set'} />
-                  <Row label="Field" value={userProfile?.field || 'Not set'} />
-                  <Row label="Intake" value={userProfile?.intake || 'Not set'} />
-                  <Row label="Budget" value={userProfile?.budget || 'Not set'} />
-
-                  <div className="pt-4 mt-4 border-t border-gray-100">
-                    <span className="text-gray-600 font-medium">Preferred Countries:</span>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {(userProfile?.preferredCountries || []).map((c: string) => (
-                        <span
-                          key={c}
-                          className="px-3 py-1.5 bg-blue-50/80 text-blue-700 rounded-full text-xs font-medium"
-                        >
-                          {c}
-                        </span>
-                      ))}
-                      {(!userProfile?.preferredCountries || userProfile.preferredCountries.length === 0) && (
-                        <span className="text-xs text-gray-500">None selected</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Column */}
-            <StageIndicator 
-              currentStage={currentStage} 
-              allStages={allStages}
-              userId={userId}
-              userProfile={userProfile}
-            />
-
-            {/* Right Column */}
-            <TodoList tasks={todos} userId={userId} />
-          </div>
+          <p className="text-gray-600">Loading dashboard...</p>
         </main>
-
-        {/* AI Counselor (floating chat) */}
-        <AICounselor userId={userId} />
       </div>
     );
-  } catch (error) {
-    console.error('Error loading dashboard:', error);
-    
+  }
+
+  if (error || !dashboard) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <Navbar />
         <main className="max-w-7xl mx-auto px-6 py-12">
           <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-            <h2 className="text-xl font-semibold text-red-900 mb-2">Error Loading Dashboard</h2>
-            <p className="text-red-700 mb-4">Unable to load your dashboard data. Please try refreshing the page.</p>
-            <button 
+            <h2 className="text-xl font-semibold text-red-900 mb-2">
+              Error Loading Dashboard
+            </h2>
+            <p className="text-red-700 mb-4">
+              Unable to load your dashboard data.
+            </p>
+            <button
               onClick={() => window.location.reload()}
               className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
@@ -117,11 +75,81 @@ export default async function DashboardPage() {
       </div>
     );
   }
+
+  const {
+    summary = {},
+    allStages = [],
+    todos = [],
+    profileStrength = 0,
+    currentStage = 'profile-setup',
+  } = dashboard;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Navbar />
+
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        <div className="mb-10">
+          <h1 className="text-4xl font-semibold text-gray-900 mb-2">
+            Welcome back 👋
+          </h1>
+          <p className="text-gray-600">
+            Track your study abroad journey
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="space-y-6">
+            <ProfileStrengthCard
+              strength={profileStrength}
+              userId={userId}
+              currentProfile={summary}
+            />
+
+            <ProfileSummary summary={summary} />
+          </div>
+
+          <StageIndicator
+            currentStage={currentStage}
+            allStages={allStages}
+            userId={userId}
+            userProfile={summary}
+          />
+
+          <UnifiedTodoList
+            userId={userId}
+            variant="dashboard"
+            showAddButton
+            initialTodos={todos}
+          />
+        </div>
+      </main>
+
+      <AICounselor userId={userId} />
+    </div>
+  );
+}
+
+function ProfileSummary({ summary }: { summary: any }) {
+  return (
+    <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-gray-200/50 shadow-sm">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900">
+        Profile Summary
+      </h3>
+
+      <div className="space-y-3 text-sm">
+        <Row label="Target Degree" value={summary?.targetDegree || 'Not set'} />
+        <Row label="Field" value={summary?.field || 'Not set'} />
+        <Row label="Intake" value={summary?.intake || 'Not set'} />
+        <Row label="Budget" value={summary?.budget || 'Not set'} />
+      </div>
+    </div>
+  );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center py-2">
+    <div className="flex justify-between items-center py-1">
       <span className="text-gray-600">{label}:</span>
       <span className="font-semibold text-gray-900">{value}</span>
     </div>

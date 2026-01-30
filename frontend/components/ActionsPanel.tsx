@@ -49,7 +49,6 @@ export default function ActionsPanel({ userUniversities, universities, tasks }: 
         </div>
       </div>
 
-      <CounsellorTodoList tasks={tasks} />
     </div>
   );
 }

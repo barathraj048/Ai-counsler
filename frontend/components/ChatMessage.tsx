@@ -1,89 +1,66 @@
+// FILE: components/ChatMessage.tsx
+
 'use client';
 
-import { Task } from '@/types';
-import { useEffect, useState } from 'react';
+import { ChatMessage as ChatMessageType, Task } from '@/types';
+import { formatDistanceToNow } from 'date-fns';
 
-interface TodoListProps {
+interface ChatMessageProps {
+  message: ChatMessageType;
   tasks?: Task[];
 }
 
-export default function TodoList({ tasks = [] }: TodoListProps) {
-  const [taskStates, setTaskStates] = useState<
-    { id: string; status: Task['status'] }[]
-  >([]);
-
-  // sync local state when tasks change
-  useEffect(() => {
-    setTaskStates(tasks.map(task => ({ id: task.id, status: task.status })));
-  }, [tasks]);
-
-  const toggleTask = (taskId: string) => {
-    setTaskStates(prev =>
-      prev.map(task =>
-        task.id === taskId
-          ? {
-              ...task,
-              status: task.status === 'completed' ? 'pending' : 'completed',
-            }
-          : task
-      )
-    );
-  };
+export default function ChatMessage({ message, tasks = [] }: ChatMessageProps) {
+  const isUser = message.role === 'user';
+  
+  // Detect if this is a supportive/empathetic message
+  const isSupportiveMessage = 
+    !isUser && 
+    (message.content.toLowerCase().includes("i'm here") ||
+     message.content.toLowerCase().includes("i hear you") ||
+     message.content.toLowerCase().includes("that sounds") ||
+     message.content.length < 150); // Short, focused responses
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        Your To-Do List
-      </h3>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div className={`max-w-[80%] ${isUser ? 'order-2' : 'order-1'}`}>
+        {/* Message Bubble */}
+        <div
+          className={`rounded-lg px-4 py-3 ${
+            isUser
+              ? 'bg-blue-600 text-white'
+              : isSupportiveMessage
+              ? 'bg-blue-50 text-gray-900 border border-blue-200'
+              : 'bg-gray-100 text-gray-900'
+          }`}
+        >
+          {/* Message Content */}
+          <p className={`text-sm whitespace-pre-wrap ${isSupportiveMessage ? 'leading-relaxed' : ''}`}>
+            {message.content}
+          </p>
 
-      {tasks.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          No tasks yet. Complete profile steps to unlock tasks 🎯
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {tasks.map(task => {
-            const taskState = taskStates.find(t => t.id === task.id);
-            const isCompleted = taskState?.status === 'completed';
-
-            return (
-              <div
-                key={task.id}
-                className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={isCompleted}
-                  onChange={() => toggleTask(task.id)}
-                  className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300"
-                />
-
-                <div className="flex-1">
-                  <p
-                    className={`text-sm font-medium ${
-                      isCompleted
-                        ? 'line-through text-gray-400'
-                        : 'text-gray-900'
-                    }`}
-                  >
-                    {task.title}
-                  </p>
-
-                  <p className="text-xs text-gray-500 mt-1">
-                    {task.description}
-                  </p>
-
-                  <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700">
-                    {task.generated_by === 'AI'
-                      ? '🤖 AI Generated'
-                      : '📋 System'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {/* Timestamp */}
+          <p
+            className={`text-xs mt-2 ${
+              isUser ? 'text-blue-100' : 'text-gray-500'
+            }`}
+          >
+            {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
+          </p>
         </div>
-      )}
+
+        {/* AI Avatar & Label for assistant messages */}
+        {!isUser && (
+          <div className="flex items-center gap-2 mt-1.5 ml-1">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+              <span className="text-white text-xs font-semibold">AI</span>
+            </div>
+            <span className="text-xs text-gray-500">
+              {isSupportiveMessage ? 'Support Mode' : 'Study Abroad Counselor'}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

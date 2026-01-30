@@ -26,12 +26,6 @@ export default function Navbar() {
               AI Counsellor
             </Link>
             <Link
-              href="/universities"
-              className="text-gray-700 hover:text-gray-900 text-sm font-medium"
-            >
-              Universities
-            </Link>
-            <Link
               href="/applications"
               className="text-gray-700 hover:text-gray-900 text-sm font-medium"
             >

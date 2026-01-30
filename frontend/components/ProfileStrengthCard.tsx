@@ -332,7 +332,7 @@ export default function ProfileStrengthCard({
           onClick={() => setShowModal(true)}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
         >
-          {pendingImprovements.length > 0 ? "Must Do's" : 'View Details'}
+          {pendingImprovements.length > 0 ? 'Improve Profile' : 'View Details'}
         </button>
 
         {/* Quick Tip */}
