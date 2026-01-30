@@ -1,7 +1,6 @@
-// frontend/components/TodoList.tsx
 'use client';
 
-import { useState, useTransition ,useEffect} from 'react';
+import { useState, useTransition } from 'react';
 import { CheckCircle2, Circle, AlertCircle, Clock, Plus } from 'lucide-react';
 
 interface Todo {
@@ -11,62 +10,47 @@ interface Todo {
   completed: boolean;
 }
 
-interface TodoListProps {
+interface DashboardTodoListProps {
   tasks: Todo[];
   userId: string;
 }
 
-// Based on your app.ts: app.use('/api/dashboard', dashboardRoutes)
-// Your endpoints are: /api/dashboard/todos/:id/toggle
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const TODO_ENDPOINT = `${API_BASE}/api/dashboard/todos`;
 
-export default function TodoList({ tasks: initialTasks, userId }: TodoListProps) {
-  const [tasks, setTasks] = useState(initialTasks);
+export default function DashboardTodoList({ tasks = [], userId }: DashboardTodoListProps) {
+  const [taskList, setTaskList] = useState(tasks);
   const [isPending, startTransition] = useTransition();
   const [showCompleted, setShowCompleted] = useState(true);
 
-useEffect(() => {
-  setTasks(initialTasks);
-}, [initialTasks]);
+  const handleToggleComplete = async (taskId: string) => {
+    setTaskList(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    );
 
-const handleToggleComplete = async (taskId: string) => {
-  // optimistic update
-  setTasks(prev =>
-    prev.map(t =>
-      t.id === taskId ? { ...t, completed: !t.completed } : t
-    )
-  );
+    startTransition(async () => {
+      try {
+        const response = await fetch(`${TODO_ENDPOINT}/${taskId}/toggle`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId })
+        });
 
-  startTransition(async () => {
-    try {
-      const res = await fetch(`${TODO_ENDPOINT}/${taskId}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (!res.ok) throw new Error();
-
-      const json = await res.json();
-
-      // 🔥 sync with DB truth
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === taskId ? json.data : t
-        )
-      );
-    } catch {
-      // rollback
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === taskId ? { ...t, completed: !t.completed } : t
-        )
-      );
-    }
-  });
-};
-
+        if (!response.ok) {
+          throw new Error('Failed to toggle todo');
+        }
+      } catch (error) {
+        setTaskList(prev =>
+          prev.map(task =>
+            task.id === taskId ? { ...task, completed: !task.completed } : task
+          )
+        );
+        console.error('Failed to update task:', error);
+      }
+    });
+  };
 
   const getPriorityStyles = (priority: string) => {
     switch (priority) {
@@ -101,15 +85,14 @@ const handleToggleComplete = async (taskId: string) => {
     }
   };
 
-  const activeTasks = tasks.filter(t => !t.completed);
-  const completedTasks = tasks.filter(t => t.completed);
-  const completionRate = tasks.length > 0 
-    ? Math.round((completedTasks.length / tasks.length) * 100) 
+  const activeTasks = taskList.filter(t => !t.completed);
+  const completedTasks = taskList.filter(t => t.completed);
+  const completionRate = taskList.length > 0 
+    ? Math.round((completedTasks.length / taskList.length) * 100) 
     : 0;
 
   return (
     <div className="space-y-6">
-      {/* Todo Header Card */}
       <div className="bg-white/80 backdrop-blur-xl p-8 rounded-2xl border border-gray-200/50 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -124,26 +107,12 @@ const handleToggleComplete = async (taskId: string) => {
           </div>
         </div>
 
-        {/* Progress Ring */}
         <div className="flex items-center justify-center mb-6">
           <div className="relative w-32 h-32">
             <svg className="w-full h-full transform -rotate-90">
+              <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="none" className="text-gray-100" />
               <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="none"
-                className="text-gray-100"
-              />
-              <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="none"
+                cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="none"
                 strokeDasharray={`${2 * Math.PI * 56}`}
                 strokeDashoffset={`${2 * Math.PI * 56 * (1 - completionRate / 100)}`}
                 className="text-blue-500 transition-all duration-1000"
@@ -159,14 +128,12 @@ const handleToggleComplete = async (taskId: string) => {
           </div>
         </div>
 
-        {/* Add Task Button */}
         <button className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-2">
           <Plus className="w-5 h-5" />
           Add New Task
         </button>
       </div>
 
-      {/* Active Tasks */}
       {activeTasks.length > 0 && (
         <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-gray-200/50 shadow-sm">
           <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">
@@ -176,10 +143,7 @@ const handleToggleComplete = async (taskId: string) => {
             {activeTasks.map(task => {
               const styles = getPriorityStyles(task.priority);
               return (
-                <div
-                  key={task.id}
-                  className="group relative"
-                >
+                <div key={task.id} className="group relative">
                   <button
                     onClick={() => handleToggleComplete(task.id)}
                     disabled={isPending}
@@ -189,7 +153,6 @@ const handleToggleComplete = async (taskId: string) => {
                       <div className="flex-shrink-0 mt-0.5">
                         <Circle className="w-6 h-6 text-gray-300 group-hover:text-blue-400 transition-colors" />
                       </div>
-                      
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                           {task.title}
@@ -210,7 +173,6 @@ const handleToggleComplete = async (taskId: string) => {
         </div>
       )}
 
-      {/* Completed Tasks */}
       {completedTasks.length > 0 && (
         <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-gray-200/50 shadow-sm">
           <button
@@ -220,14 +182,7 @@ const handleToggleComplete = async (taskId: string) => {
             <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
               Completed ({completedTasks.length})
             </h4>
-            <svg
-              className={`w-5 h-5 text-gray-400 transition-transform ${
-                showCompleted ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className={`w-5 h-5 text-gray-400 transition-transform ${showCompleted ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -235,10 +190,7 @@ const handleToggleComplete = async (taskId: string) => {
           {showCompleted && (
             <div className="space-y-2">
               {completedTasks.map(task => (
-                <div
-                  key={task.id}
-                  className="group relative"
-                >
+                <div key={task.id} className="group relative">
                   <button
                     onClick={() => handleToggleComplete(task.id)}
                     disabled={isPending}
@@ -248,11 +200,8 @@ const handleToggleComplete = async (taskId: string) => {
                       <div className="flex-shrink-0 mt-0.5">
                         <CheckCircle2 className="w-6 h-6 text-green-500" />
                       </div>
-                      
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-500 line-through">
-                          {task.title}
-                        </p>
+                        <p className="font-medium text-gray-500 line-through">{task.title}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
                             ✓ Done
@@ -268,8 +217,7 @@ const handleToggleComplete = async (taskId: string) => {
         </div>
       )}
 
-      {/* Empty State */}
-      {tasks.length === 0 && (
+      {taskList.length === 0 && (
         <div className="bg-white/80 backdrop-blur-xl p-12 rounded-2xl border border-gray-200/50 shadow-sm text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-gray-400" />

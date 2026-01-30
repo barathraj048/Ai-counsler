@@ -3,7 +3,7 @@
 import Navbar from '@/components/Navbar';
 import ProfileStrengthCard from '@/components/ProfileStrengthCard';
 import StageIndicator from '@/components/StageIndicator';
-import TodoList from '@/components/TodoList';
+import TodoList from '@/components/DashboardTodoList';
 import AICounselor from '@/components/AICounselor';
 import { fetchDashboard } from '@/lib/api';
 

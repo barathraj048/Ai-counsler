@@ -56,7 +56,7 @@ export default function CounsellorPage() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-6">
                 {messages.map(message => (
-                  <ChatMessage key={message.id} message={message} />
+                  <ChatMessage tasks={dummyTasks} />
                 ))}
               </div>
 

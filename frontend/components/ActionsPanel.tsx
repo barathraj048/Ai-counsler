@@ -1,6 +1,5 @@
-// FILE: components/ActionsPanel.tsx
-
 import { UserUniversity, University, Task } from '@/types';
+import CounsellorTodoList from './CounsellorTodoList';
 
 interface ActionsPanelProps {
   userUniversities: UserUniversity[];
@@ -18,7 +17,6 @@ export default function ActionsPanel({ userUniversities, universities, tasks }: 
 
   return (
     <div className="space-y-6">
-      {/* Shortlisted Universities */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900 mb-3">
           Shortlisted ({shortlisted.length})
@@ -35,7 +33,6 @@ export default function ActionsPanel({ userUniversities, universities, tasks }: 
         </div>
       </div>
 
-      {/* Locked Universities */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900 mb-3">
           Locked for Application ({locked.length})
@@ -52,20 +49,7 @@ export default function ActionsPanel({ userUniversities, universities, tasks }: 
         </div>
       </div>
 
-      {/* AI Tasks */}
-      <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">
-          AI-Generated Tasks
-        </h3>
-        <div className="space-y-2">
-          {tasks.filter(t => t.generated_by === 'AI').slice(0, 3).map(task => (
-            <div key={task.id} className="text-sm p-2 bg-blue-50 rounded">
-              <p className="font-medium text-gray-900">{task.title}</p>
-              <p className="text-xs text-gray-600 mt-1">{task.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <CounsellorTodoList tasks={tasks} />
     </div>
   );
 }
