@@ -93,8 +93,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
   useEffect(() => {
     const savedStages = localStorage.getItem(`stages_${userId}`);
     if (savedStages) {
-      const parsedStages = JSON.parse(savedStages);
-      setStages(parsedStages);
+      setStages(JSON.parse(savedStages));
     }
   }, [userId]);
 
@@ -116,13 +115,6 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
       
       // Save to localStorage
       localStorage.setItem(`stages_${userId}`, JSON.stringify(updatedStages));
-      
-      // Log the update for debugging
-      console.log('Stages updated:', {
-        completed: updatedStages.filter(s => s.status === 'completed').length,
-        total: updatedStages.length
-      });
-      
       return updatedStages;
     });
   };
@@ -283,7 +275,6 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
     return <IconComponent className="w-6 h-6 text-gray-300" />;
   };
 
-  // Calculate progress - this will automatically update when stages state changes
   const completedCount = stages.filter(s => s.status === 'completed').length;
   const progressPercentage = stages.length > 0 ? (completedCount / stages.length) * 100 : 0;
 

@@ -28,8 +28,11 @@ export default function ActionsPanel({ userUniversities, universities }: Actions
     }
     
     // If not found, try to get from the userUniversity object itself
+    //@ts-ignore
     const userUni = userUniversities.find(u => u.universityId === id || u.university_id === id);
+    //@ts-ignore
     if (userUni && userUni.university) {
+      //@ts-ignore
       return userUni.university.name;
     }
     
@@ -62,7 +65,6 @@ export default function ActionsPanel({ userUniversities, universities }: Actions
                   <div className="font-medium">{name}</div>
                   {uni.university_id && (
                     <div className="text-xs text-gray-500 mt-1">
-                      {uni.university.country} • Rank #{uni.university_id.ranking}
                     </div>
                   )}
                 </div>

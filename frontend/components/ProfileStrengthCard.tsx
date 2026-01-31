@@ -77,7 +77,17 @@ export default function ProfileStrengthCard({
     setProfile(currentProfile);
     const newStrength = calculateProfileStrength(currentProfile);
     setCurrentStrength(newStrength);
+    console.log('📊 Profile updated, new strength:', newStrength);
   }, [currentProfile]);
+
+  // Recalculate strength whenever profile state changes
+  useEffect(() => {
+    const recalculatedStrength = calculateProfileStrength(profile);
+    if (recalculatedStrength !== currentStrength) {
+      setCurrentStrength(recalculatedStrength);
+      console.log('🔄 Strength recalculated:', recalculatedStrength);
+    }
+  }, [profile]);
 
   // Load improvement tasks from API when modal opens
   useEffect(() => {
@@ -290,9 +300,13 @@ export default function ProfileStrengthCard({
 
       const data = await response.json();
 
-      // Update local state
+      // Update local state - this triggers the useEffect to recalculate strength
       setProfile(data.dashboardJson);
-      setCurrentStrength(data.profileStrength);
+      
+      // Calculate new strength from updated profile
+      const newStrength = calculateProfileStrength(data.dashboardJson);
+      setCurrentStrength(newStrength);
+      
       setUpdateMessage(`✓ ${item.title} completed! +${item.impact}%`);
 
       // Mark task as completed
@@ -300,9 +314,11 @@ export default function ProfileStrengthCard({
         prev.map(t => (t.id === item.id ? { ...t, status: 'completed' as const } : t))
       );
 
-      // Notify parent
-      onStrengthUpdate?.(data.profileStrength);
+      // Notify parent with the new calculated strength
+      onStrengthUpdate?.(newStrength);
       onProfileUpdate?.(data.dashboardJson);
+
+      console.log('✅ Task completed:', item.title, 'New strength:', newStrength);
 
       setTimeout(() => setUpdateMessage(null), 3000);
 
