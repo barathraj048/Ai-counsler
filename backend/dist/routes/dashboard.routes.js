@@ -1,9 +1,23 @@
 // backend/src/routes/dashboard.routes.ts
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { getDashboard, toggleTodo, createTodo, deleteTodo, getTodos, aiCounselor, } from '../controllers/dashboard.controller.js';
+import { getDashboard, toggleTodo, createTodo, deleteTodo, getTodos, aiCounselor, discoverUniversities, // ← ADD THIS
+shortlistUniversities, } from '../controllers/dashboard.controller.js';
 const router = Router();
 const prisma = new PrismaClient();
+/* ======================================================
+   UNIVERSITY DISCOVERY (AI-POWERED)
+====================================================== */
+/**
+ * POST /api/dashboard/discover-universities
+ * AI-powered university discovery based on user profile
+ */
+router.post('/discover-universities', discoverUniversities);
+/**
+ * POST /api/dashboard/shortlist-universities
+ * AI-powered shortlisting based on priorities
+ */
+router.post('/shortlist-universities', shortlistUniversities);
 /* ======================================================
    DASHBOARD (OLD – CONTROLLER BASED)
 ====================================================== */
