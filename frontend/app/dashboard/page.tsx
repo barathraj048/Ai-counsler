@@ -5,10 +5,11 @@ import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import ProfileStrengthCard from '@/components/ProfileStrengthCard';
 import StageIndicator from '@/components/StageIndicator';
-import UnifiedTodoList from '@/components/UnifiedTodoList';
 import AICounselor from '@/components/AICounselor';
 
 import { fetchDashboard } from '@/lib/api';
+import { Lock, Sparkles, AlertCircle, CheckCircle2, Clock, FileText } from 'lucide-react';
+import Link from 'next/link';
 
 interface DashboardData {
   summary: any;
@@ -116,16 +117,121 @@ export default function DashboardPage() {
             userProfile={summary}
           />
 
-          <UnifiedTodoList
-            userId={userId}
-            variant="dashboard"
-            showAddButton
-            initialTodos={todos}
-          />
+          <ApplicationLocking />
         </div>
       </main>
 
       <AICounselor userId={userId} />
+    </div>
+  );
+}
+
+function ApplicationLocking() {
+  return (
+    <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-gray-200/50 shadow-sm overflow-hidden">
+      {/* Header with Badge */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b-2 border-purple-200 p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0">
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <Lock className="w-5 h-5 text-purple-600" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-600 text-white">
+                COMING SOON
+              </span>
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-1">
+              Application Locking
+            </h3>
+            <p className="text-xs text-gray-700">
+              Lock universities and streamline your applications
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Feature List */}
+      <div className="p-5">
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            What This Will Do
+          </h4>
+          <div className="space-y-2.5">
+            <FeatureItem
+              icon={<Lock className="w-3.5 h-3.5" />}
+              title="Lock Your Selections"
+              description="Commit to your top 5-8 university choices"
+            />
+            <FeatureItem
+              icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              title="Custom Checklists"
+              description="Get tailored document requirements per university"
+            />
+            <FeatureItem
+              icon={<Clock className="w-3.5 h-3.5" />}
+              title="Deadline Tracking"
+              description="Automated reminders for important dates"
+            />
+            <FeatureItem
+              icon={<FileText className="w-3.5 h-3.5" />}
+              title="Application Status"
+              description="Track submissions and university responses"
+            />
+          </div>
+        </div>
+
+        {/* Development Notice */}
+        <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg mb-4">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-medium text-amber-900">
+                Feature Under Development
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Once complete, you'll be able to lock universities from your shortlist, receive AI-powered application guides, and track all your submissions in one place.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div
+          className="block w-full text-center px-4 py-2.5 bg-gray-600 text-white hover:bg-gray-600 rounded-lg font-medium text-sm transition-colors"
+        >
+          Build Your Shortlist Now 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureItem({ 
+  icon, 
+  title, 
+  description 
+}: { 
+  icon: React.ReactNode; 
+  title: string; 
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 p-2.5 bg-gray-50 rounded-lg">
+      <div className="flex-shrink-0 w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <h5 className="text-xs font-semibold text-gray-900 mb-0.5">
+          {title}
+        </h5>
+        <p className="text-xs text-gray-600">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }

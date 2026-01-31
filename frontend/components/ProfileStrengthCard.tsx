@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, Target, Award, X, CheckCircle, Circle, Loader2 } from 'lucide-react';
+import { TrendingUp, Target, Award, X, CheckCircle, Circle, Loader2, Sparkles } from 'lucide-react';
 
 interface ProfileStrengthCardProps {
   strength: number;
@@ -19,9 +19,12 @@ interface ImprovementItem {
   impact: number;
   status: 'completed' | 'pending';
   category: 'academic' | 'experience' | 'tests' | 'documents';
+  actionable?: string;
 }
 
-const API_BASE_URL = 'http://localhost:4000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const STORAGE_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+const STORAGE_TIMESTAMP_KEY = 'profileStrength_lastCleanup';
 
 export default function ProfileStrengthCard({ 
   strength: initialStrength, 
@@ -34,7 +37,40 @@ export default function ProfileStrengthCard({
   const [currentStrength, setCurrentStrength] = useState(initialStrength);
   const [profile, setProfile] = useState(currentProfile);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const [improvementTasks, setImprovementTasks] = useState<ImprovementItem[]>([]);
+
+  // Local Storage Cleanup Effect
+  useEffect(() => {
+    const cleanupLocalStorage = () => {
+      try {
+        const now = Date.now();
+        const lastCleanup = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+        
+        if (!lastCleanup || (now - parseInt(lastCleanup)) > STORAGE_CLEANUP_INTERVAL) {
+          // Clear all localStorage items
+          localStorage.clear();
+          
+          // Set new timestamp
+          localStorage.setItem(STORAGE_TIMESTAMP_KEY, now.toString());
+          
+          console.log('🧹 Local storage cleaned up');
+        }
+      } catch (error) {
+        console.error('Error during localStorage cleanup:', error);
+      }
+    };
+
+    // Run cleanup on component mount
+    cleanupLocalStorage();
+
+    // Set up interval to run cleanup every hour
+    const cleanupInterval = setInterval(cleanupLocalStorage, STORAGE_CLEANUP_INTERVAL);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // Update local profile when prop changes
   useEffect(() => {
@@ -42,6 +78,38 @@ export default function ProfileStrengthCard({
     const newStrength = calculateProfileStrength(currentProfile);
     setCurrentStrength(newStrength);
   }, [currentProfile]);
+
+  // Load improvement tasks from API when modal opens
+  useEffect(() => {
+    if (showModal && improvementTasks.length === 0) {
+      loadImprovementTasks();
+    }
+  }, [showModal]);
+
+  const loadImprovementTasks = async () => {
+    setIsLoadingTasks(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/profile/${userId}/improvement-tasks`);
+      
+      if (!response.ok) throw new Error('Failed to load tasks');
+
+      const data = await response.json();
+      
+      // Mark tasks as pending by default
+      const tasksWithStatus = data.tasks.map((task: any) => ({
+        ...task,
+        status: 'pending' as const,
+      }));
+
+      setImprovementTasks(tasksWithStatus);
+    } catch (error) {
+      console.error('Error loading improvement tasks:', error);
+      // Fallback to local calculation if API fails
+      setImprovementTasks(getLocalImprovementItems());
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  };
 
   const calculateProfileStrength = (profileData: any): number => {
     let score = 10;
@@ -85,10 +153,9 @@ export default function ProfileStrengthCard({
     return { label: 'Needs Work', color: 'text-orange-600', bgColor: 'bg-orange-500' };
   };
 
-  const getImprovementItems = (): ImprovementItem[] => {
+  const getLocalImprovementItems = (): ImprovementItem[] => {
     const improvements: ImprovementItem[] = [];
     
-    // GPA Check
     if (!profile?.gpa || profile.gpa < 3.0) {
       improvements.push({
         id: 'improve-gpa',
@@ -100,7 +167,6 @@ export default function ProfileStrengthCard({
       });
     }
 
-    // Test Scores Check
     const hasTestScores = profile?.testScores?.gre || 
                          profile?.testScores?.gmat || 
                          profile?.testScores?.toefl || 
@@ -117,7 +183,6 @@ export default function ProfileStrengthCard({
       });
     }
 
-    // Work Experience Check
     if (!profile?.workExperience || profile.workExperience.length === 0) {
       improvements.push({
         id: 'add-experience',
@@ -129,7 +194,6 @@ export default function ProfileStrengthCard({
       });
     }
 
-    // Statement of Purpose Check
     if (!profile?.sop) {
       improvements.push({
         id: 'add-sop',
@@ -141,7 +205,6 @@ export default function ProfileStrengthCard({
       });
     }
 
-    // Letters of Recommendation Check
     const lorCount = profile?.lors?.length || 0;
     if (lorCount < 2) {
       improvements.push({
@@ -156,7 +219,6 @@ export default function ProfileStrengthCard({
       });
     }
 
-    // Extracurriculars Check
     if (!profile?.extracurriculars || profile.extracurriculars.length === 0) {
       improvements.push({
         id: 'add-activities',
@@ -180,6 +242,7 @@ export default function ProfileStrengthCard({
     try {
       let itemData: any = {};
 
+      // Provide sample data based on item ID
       switch (item.id) {
         case 'improve-gpa':
           itemData = { gpa: 3.5 };
@@ -213,9 +276,11 @@ export default function ProfileStrengthCard({
             description: 'Community service project'
           };
           break;
+        default:
+          itemData = { completed: true };
       }
 
-      const response = await fetch(`${API_BASE_URL}/profile/${userId}/complete-item`, {
+      const response = await fetch(`${API_BASE_URL}/api/profile/${userId}/complete-item`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: item.id, itemData }),
@@ -225,10 +290,15 @@ export default function ProfileStrengthCard({
 
       const data = await response.json();
 
-      // Update local state with new profile data
+      // Update local state
       setProfile(data.dashboardJson);
       setCurrentStrength(data.profileStrength);
       setUpdateMessage(`✓ ${item.title} completed! +${item.impact}%`);
+
+      // Mark task as completed
+      setImprovementTasks(prev =>
+        prev.map(t => (t.id === item.id ? { ...t, status: 'completed' as const } : t))
+      );
 
       // Notify parent
       onStrengthUpdate?.(data.profileStrength);
@@ -245,9 +315,10 @@ export default function ProfileStrengthCard({
     }
   };
 
-  const improvements = getImprovementItems();
+  const improvements = improvementTasks.length > 0 ? improvementTasks : getLocalImprovementItems();
   const pendingImprovements = improvements.filter(i => i.status === 'pending');
-  const completedCount = 6 - pendingImprovements.length; // Total possible items = 6
+  const completedCount = improvements.length - pendingImprovements.length;
+  const totalTasks = Math.max(6, improvements.length);
   const potentialIncrease = pendingImprovements.reduce((sum, item) => sum + item.impact, 0);
 
   const level = getStrengthLevel(currentStrength);
@@ -315,7 +386,7 @@ export default function ProfileStrengthCard({
               <Target className="w-3.5 h-3.5 text-blue-600" />
               <span className="text-xs font-medium text-blue-900">Completed</span>
             </div>
-            <div className="text-xl font-bold text-blue-900">{completedCount}/6</div>
+            <div className="text-xl font-bold text-blue-900">{completedCount}/{totalTasks}</div>
           </div>
           
           <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
@@ -330,16 +401,17 @@ export default function ProfileStrengthCard({
         {/* Action Button */}
         <button 
           onClick={() => setShowModal(true)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          {pendingImprovements.length > 0 ? 'Improve Profile' : 'View Details'}
+          <Sparkles className="w-4 h-4" />
+          {pendingImprovements.length > 0 ? 'AI-Powered Insights' : 'View Details'}
         </button>
 
         {/* Quick Tip */}
         {pendingImprovements.length > 0 && (
           <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-xs text-gray-600">
-              💡 <span className="font-medium">Quick tip:</span> {pendingImprovements.length} tasks remaining
+              💡 <span className="font-medium">AI tip:</span> {pendingImprovements.length} personalized tasks
             </p>
           </div>
         )}
@@ -358,13 +430,16 @@ export default function ProfileStrengthCard({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden">
             {/* Header */}
-            <div className="p-5 border-b border-gray-200 bg-gray-50">
+            <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Profile Improvement</h2>
-                  <p className="text-sm text-gray-600 mt-0.5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold text-gray-900">AI-Powered Insights</h2>
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <p className="text-sm text-gray-600">
                     {pendingImprovements.length > 0 
-                      ? `${pendingImprovements.length} tasks to reach ${Math.min(100, currentStrength + potentialIncrease)}%`
+                      ? `${pendingImprovements.length} personalized tasks to reach ${Math.min(100, currentStrength + potentialIncrease)}%`
                       : 'All tasks completed! 🎉'
                     }
                   </p>
@@ -382,12 +457,12 @@ export default function ProfileStrengthCard({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-600">Progress</span>
-                  <span className="font-semibold text-gray-900">{completedCount}/6</span>
+                  <span className="font-semibold text-gray-900">{completedCount}/{totalTasks}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5">
                   <div 
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${(completedCount / 6) * 100}%` }}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${(completedCount / totalTasks) * 100}%` }}
                   />
                 </div>
               </div>
@@ -410,60 +485,89 @@ export default function ProfileStrengthCard({
 
             {/* Content */}
             <div className="p-5 overflow-y-auto max-h-[calc(85vh-180px)]">
-              <div className="space-y-3">
-                {improvements.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <Circle className="w-5 h-5 text-gray-400" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3 mb-1.5">
-                          <h3 className="font-semibold text-gray-900 text-sm">
-                            {item.title}
-                          </h3>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded border ${getCategoryColor(item.category)}`}>
-                              {item.category}
-                            </span>
-                            <span className="text-xs font-bold text-blue-600">
-                              +{item.impact}%
-                            </span>
-                          </div>
+              {isLoadingTasks ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-3" />
+                  <p className="text-sm text-gray-600">AI is analyzing your profile...</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {improvements.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-lg border transition-all ${
+                        item.status === 'completed'
+                          ? 'bg-green-50 border-green-200 opacity-75'
+                          : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 mt-0.5">
+                          {item.status === 'completed' ? (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <Circle className="w-5 h-5 text-gray-400" />
+                          )}
                         </div>
 
-                        <p className="text-xs text-gray-600 mb-3 leading-relaxed">
-                          {item.description}
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-3 mb-1.5">
+                            <h3 className="font-semibold text-gray-900 text-sm">
+                              {item.title}
+                            </h3>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded border ${getCategoryColor(item.category)}`}>
+                                {item.category}
+                              </span>
+                              <span className="text-xs font-bold text-blue-600">
+                                +{item.impact}%
+                              </span>
+                            </div>
+                          </div>
 
-                        <button
-                          onClick={() => handleMarkComplete(item)}
-                          disabled={isUpdating}
-                          className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          {isUpdating ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Updating...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              Mark Complete (Demo)
-                            </>
+                          <p className="text-xs text-gray-600 mb-2 leading-relaxed">
+                            {item.description}
+                          </p>
+
+                          {item.actionable && (
+                            <p className="text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded mb-3">
+                              <span className="font-semibold">💡 Next step:</span> {item.actionable}
+                            </p>
                           )}
-                        </button>
+
+                          {item.status === 'pending' && (
+                            <button
+                              onClick={() => handleMarkComplete(item)}
+                              disabled={isUpdating}
+                              className="w-full px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5"
+                            >
+                              {isUpdating ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Updating...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Mark Complete (Demo)
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {item.status === 'completed' && (
+                            <div className="text-xs text-green-700 font-medium">
+                              ✓ Completed
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {pendingImprovements.length === 0 && (
+              {!isLoadingTasks && pendingImprovements.length === 0 && (
                 <div className="text-center py-8">
                   <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">

@@ -2,6 +2,7 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
+import { UniversityProvider, useUniversities } from '@/components/contexts/UniversityContext';
 
 export const metadata: Metadata = {
   title: 'AI Counsellor - Plan Your Study Abroad Journey',
@@ -14,10 +15,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-gray-50">
-        {children}
-      </body>
-    </html>
+    <UniversityProvider userId="user_123">
+      <html lang="en">
+        <body className="antialiased bg-gray-50">
+          {children}
+        </body>
+      </html>
+    </UniversityProvider>
   );
 }

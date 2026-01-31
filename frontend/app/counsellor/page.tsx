@@ -1,5 +1,4 @@
-// FILE: app/counsellor/page.tsx
-
+// app/counsellor/page.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -9,8 +8,11 @@ import ActionsPanel from '@/components/ActionsPanel';
 import { dummyTasks } from '@/lib/dummy-data';
 import { ChatMessage as ChatMessageType } from '@/types';
 import { processCounsellorMessage, analyzeConversationTrend } from './actions';
+import { UniversityProvider, useUniversities } from '@/components/contexts/UniversityContext';
 
-export default function CounsellorPage() {
+function CounsellorContent() {
+  const { discoveredUniversities, shortlistedUniversities, isLoading: universitiesLoading } = useUniversities();
+  
   const [messages, setMessages] = useState<ChatMessageType[]>([
     {
       id: '1',
@@ -24,70 +26,7 @@ export default function CounsellorPage() {
   const [showSupportBanner, setShowSupportBanner] = useState(false);
   const [isInSupportiveMode, setIsInSupportiveMode] = useState(false);
   
-  // Load real universities from localStorage
-  const [discoveredUniversities, setDiscoveredUniversities] = useState<any[]>([]);
-  const [shortlistedUniversities, setShortlistedUniversities] = useState<any[]>([]);
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Get userId and load universities from localStorage
-  useEffect(() => {
-    // Try to get userId from multiple sources
-    const userId = localStorage.getItem('userId') || 
-                   sessionStorage.getItem('userId') || 
-                   'default-user';
-    
-    const loadUniversities = () => {
-      // Load discovered universities
-      const savedDiscovered = localStorage.getItem(`universities_${userId}`);
-      if (savedDiscovered) {
-        try {
-          const universities = JSON.parse(savedDiscovered);
-          console.log('✅ Loaded discovered universities:', universities);
-          setDiscoveredUniversities(universities);
-        } catch (e) {
-          console.error('Error parsing discovered universities:', e);
-        }
-      } else {
-        console.log('ℹ️ No discovered universities found in localStorage');
-      }
-      
-      // Load shortlisted universities
-      const savedShortlist = localStorage.getItem(`shortlist_${userId}`);
-      if (savedShortlist) {
-        try {
-          const shortlist = JSON.parse(savedShortlist);
-          console.log('✅ Loaded shortlisted universities:', shortlist);
-          setShortlistedUniversities(shortlist);
-        } catch (e) {
-          console.error('Error parsing shortlisted universities:', e);
-        }
-      } else {
-        console.log('ℹ️ No shortlisted universities found in localStorage');
-      }
-    };
-
-    // Load immediately
-    loadUniversities();
-
-    // Poll for updates every 2 seconds (in case user updates in same tab)
-    const interval = setInterval(loadUniversities, 2000);
-    
-    // Listen for storage events (for cross-tab updates)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes('universities_') || e.key?.includes('shortlist_')) {
-        console.log('📡 Storage changed:', e.key);
-        loadUniversities();
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -97,7 +36,6 @@ export default function CounsellorPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Analyze conversation trend periodically
   useEffect(() => {
     const checkTrend = async () => {
       if (messages.length >= 6) {
@@ -107,7 +45,6 @@ export default function CounsellorPage() {
         }
       }
     };
-
     checkTrend();
   }, [messages, showSupportBanner]);
 
@@ -119,7 +56,6 @@ export default function CounsellorPage() {
     setInputMessage('');
     setIsLoading(true);
 
-    // Add user message immediately
     const newUserMessage: ChatMessageType = {
       id: Date.now().toString(),
       role: 'user',
@@ -130,22 +66,18 @@ export default function CounsellorPage() {
     setMessages(prev => [...prev, newUserMessage]);
 
     try {
-      // Get AI response with emotional intelligence
       const response = await processCounsellorMessage(
         userMessageText,
         [...messages, newUserMessage],
         undefined
       );
 
-      // Update supportive mode state
       setIsInSupportiveMode(response.emotionalState.isDistressed);
 
-      // Show support banner if needed
       if (response.suggestHumanSupport) {
         setShowSupportBanner(true);
       }
 
-      // Add AI response
       const aiResponse: ChatMessageType = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -157,7 +89,6 @@ export default function CounsellorPage() {
     } catch (error) {
       console.error('Error getting AI response:', error);
       
-      // Fallback response
       const fallbackResponse: ChatMessageType = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -175,6 +106,7 @@ export default function CounsellorPage() {
   const userUniversities = shortlistedUniversities.map(uni => ({
     id: uni.id,
     universityId: uni.id,
+    university_id: uni.id,
     university: {
       id: uni.id,
       name: uni.name,
@@ -194,11 +126,13 @@ export default function CounsellorPage() {
     tuitionFee: uni.tuitionFee
   }));
 
-  console.log('📊 Current state:', {
-    discovered: discoveredUniversities.length,
-    shortlisted: shortlistedUniversities.length,
-    userUniversities: userUniversities.length,
-    allUniversities: allUniversities.length
+  console.log('🔍 CounsellorContent Debug:', {
+    discoveredCount: discoveredUniversities.length,
+    shortlistedCount: shortlistedUniversities.length,
+    userUniversitiesCount: userUniversities.length,
+    allUniversitiesCount: allUniversities.length,
+    sampleUserUniversity: userUniversities[0],
+    sampleAllUniversity: allUniversities[0]
   });
 
   return (
@@ -210,12 +144,11 @@ export default function CounsellorPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             AI Counsellor
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-900">
             Get personalized guidance for your study abroad journey
           </p>
         </div>
 
-        {/* Support Banner */}
         {showSupportBanner && (
           <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -232,24 +165,13 @@ export default function CounsellorPage() {
                   It seems like you might be going through a difficult time. While I'm here to listen, speaking with a human counselor or trusted person could be really helpful.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <a
-                    href="tel:988"
-                    className="inline-flex items-center px-3 py-1.5 bg-amber-600 text-white text-sm font-medium rounded hover:bg-amber-700"
-                  >
+                  <a href="tel:988" className="inline-flex items-center px-3 py-1.5 bg-amber-600 text-white text-sm font-medium rounded hover:bg-amber-700">
                     📞 Crisis Helpline: 988
                   </a>
-                  <a
-                    href="https://988lifeline.org/chat/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-1.5 bg-white text-amber-900 text-sm font-medium rounded border border-amber-300 hover:bg-amber-50"
-                  >
+                  <a href="https://988lifeline.org/chat/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 bg-white text-amber-900 text-sm font-medium rounded border border-amber-300 hover:bg-amber-50">
                     💬 Online Chat Support
                   </a>
-                  <button
-                    onClick={() => setShowSupportBanner(false)}
-                    className="inline-flex items-center px-3 py-1.5 text-amber-700 text-sm font-medium hover:text-amber-900"
-                  >
+                  <button onClick={() => setShowSupportBanner(false)} className="inline-flex items-center px-3 py-1.5 text-amber-700 text-sm font-medium hover:text-amber-900">
                     Dismiss
                   </button>
                 </div>
@@ -258,7 +180,6 @@ export default function CounsellorPage() {
           </div>
         )}
 
-        {/* Supportive Mode Indicator */}
         {isInSupportiveMode && !showSupportBanner && (
           <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex items-center gap-2 text-sm text-blue-800">
@@ -270,21 +191,22 @@ export default function CounsellorPage() {
           </div>
         )}
 
-        {/* Debug Info (remove in production) */}
-        {process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && (
-          <div className="mb-4 bg-gray-100 border border-gray-300 rounded-lg p-3 text-xs">
-            <p className="font-semibold mb-1">Debug Info:</p>
-            <p>Discovered Universities: {discoveredUniversities.length}</p>
-            <p>Shortlisted Universities: {shortlistedUniversities.length}</p>
-            <p>localStorage keys: {Object.keys(localStorage).filter(k => k.includes('universities') || k.includes('shortlist')).join(', ')}</p>
+        {/* Real-time data sync indicator */}
+        {!universitiesLoading && (discoveredUniversities.length > 0 || shortlistedUniversities.length > 0) && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+            <div className="flex items-center gap-2 text-green-800">
+              <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span>
+                Synced: {discoveredUniversities.length} discovered, {shortlistedUniversities.length} shortlisted
+              </span>
+            </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chat Panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg border border-gray-200 flex flex-col" style={{ height: '600px' }}>
-              {/* Messages */}
+            <div className="bg-white rounded-lg border text-gray-900 border-gray-200 flex flex-col" style={{ height: '600px' }}>
               <div className="flex-1 overflow-y-auto p-6">
                 {messages.map(message => (
                   <ChatMessage 
@@ -294,7 +216,7 @@ export default function CounsellorPage() {
                   />
                 ))}
                 {isLoading && (
-                  <div className="flex justify-start mb-4">
+                  <div className="flex justify-start mb-4 text-gray-900">
                     <div className="bg-gray-100 rounded-lg px-4 py-3 max-w-[80%]">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
@@ -302,7 +224,7 @@ export default function CounsellorPage() {
                           <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                           <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                         </div>
-                        <span className="text-xs text-gray-500">Thinking...</span>
+                        <span className="text-xs text-gray-900">Thinking...</span>
                       </div>
                     </div>
                   </div>
@@ -310,7 +232,6 @@ export default function CounsellorPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input */}
               <div className="border-t border-gray-200 p-4 text-gray-900">
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                   <input
@@ -333,7 +254,7 @@ export default function CounsellorPage() {
                     {isLoading ? 'Sending...' : 'Send'}
                   </button>
                 </form>
-                <p className="text-xs text-gray-500 mt-2 text-center">
+                <p className="text-xs text-gray-900 mt-2 text-center">
                   {isInSupportiveMode 
                     ? "Take your time. There's no rush."
                     : "Your counselor is here to help 24/7"}
@@ -342,7 +263,7 @@ export default function CounsellorPage() {
             </div>
           </div>
 
-          {/* Actions Panel - NOW WITH REAL DATA */}
+          {/* Actions Panel - Now uses shared context data */}
           <div>
             <ActionsPanel
               userUniversities={userUniversities}
@@ -353,5 +274,36 @@ export default function CounsellorPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function CounsellorPage() {
+  const [userId, setUserId] = useState<string>('');
+
+  useEffect(() => {
+    // Get userId from localStorage/sessionStorage
+    const id = localStorage.getItem('userId') || 
+               sessionStorage.getItem('userId') || 
+               'user_123';
+    setUserId(id);
+    console.log('🆔 CounsellorPage userId:', id);
+  }, []);
+
+  if (!userId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-900">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ⚠️ CRITICAL FIX: Use the actual userId, not hardcoded value
+  return (
+    <UniversityProvider userId={userId}>
+      <CounsellorContent />
+    </UniversityProvider>
   );
 }

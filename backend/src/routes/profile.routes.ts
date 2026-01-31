@@ -2,6 +2,7 @@
 
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { generateImprovementTasks } from '../services/llm.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -82,6 +83,35 @@ router.get('/:userId/strength', async (req, res) => {
 });
 
 /**
+ * GET /api/profile/:userId/improvement-tasks
+ * Generate AI-powered improvement tasks
+ */
+router.get('/:userId/improvement-tasks', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const snapshot = await prisma.dashboardSnapshot.findUnique({
+      where: { userId },
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Generate tasks using LLM
+    const tasks = await generateImprovementTasks(snapshot.dashboardJson);
+
+    res.json({
+      tasks,
+      currentStrength: snapshot.profileStrength,
+    });
+  } catch (error) {
+    console.error('Error generating improvement tasks:', error);
+    res.status(500).json({ error: 'Failed to generate improvement tasks' });
+  }
+});
+
+/**
  * PUT /api/profile/:userId/update
  * Update profile data and recalculate strength
  */
@@ -154,7 +184,7 @@ router.post('/:userId/complete-item', async (req, res) => {
     // Apply updates based on item ID
     switch (itemId) {
       case 'improve-gpa':
-        updates.gpa = itemData.gpa;
+        updates.gpa = itemData.gpa || 3.5;
         break;
 
       case 'add-test-scores':
@@ -172,7 +202,7 @@ router.post('/:userId/complete-item', async (req, res) => {
         break;
 
       case 'add-sop':
-        updates.sop = itemData.sop;
+        updates.sop = itemData.sop || 'Completed';
         break;
 
       case 'add-lors':
@@ -187,7 +217,9 @@ router.post('/:userId/complete-item', async (req, res) => {
         break;
 
       default:
-        return res.status(400).json({ error: 'Invalid item ID' });
+        // For custom task IDs from LLM
+        updates[itemId] = itemData;
+        break;
     }
 
     // Merge updates

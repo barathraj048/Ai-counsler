@@ -9,11 +9,7 @@ datasource db {
 
 /**
  * --------------------
- */
-/**
  * USER
- */
-/**
  * --------------------
  */
 model User {
@@ -25,16 +21,13 @@ model User {
 
   onboardingAnswers OnboardingAnswer[]
   dashboardSnapshot DashboardSnapshot?
-  dashboardTodos    DashboardTodo[] // ✅ FIXED (inverse relation)
+  dashboardTodos    DashboardTodo[]
+  universities      University[]
 }
 
 /**
  * --------------------
- */
-/**
  * ONBOARDING ANSWER
- */
-/**
  * --------------------
  */
 model OnboardingAnswer {
@@ -52,11 +45,7 @@ model OnboardingAnswer {
 
 /**
  * --------------------
- */
-/**
  * DASHBOARD SNAPSHOT
- */
-/**
  * --------------------
  */
 model DashboardSnapshot {
@@ -78,11 +67,7 @@ model DashboardSnapshot {
 
 /**
  * --------------------
- */
-/**
  * DASHBOARD TODO
- */
-/**
  * --------------------
  */
 model DashboardTodo {
@@ -98,4 +83,39 @@ model DashboardTodo {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * --------------------
+ * UNIVERSITY
+ * --------------------
+ */
+model University {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic info
+  name        String
+  location    String?
+  ranking     Int?
+  programName String?
+  tuitionFee  String?
+
+  // Status tracking
+  status         String   @default("discovered") // discovered | shortlisted | applied | rejected | accepted
+  discoveredAt   DateTime @default(now())
+  shortlistedAt  DateTime?
+  appliedAt      DateTime?
+
+  // Additional data
+  universityData Json? // Full university data from discovery
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
 }

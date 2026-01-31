@@ -1,8 +1,9 @@
-// frontend/components/StageIndicator.tsx
+// components/StageIndicator.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { CheckCircle, Circle, ChevronRight, X, University, Filter, TrendingUp, FileText, Plane, PackageCheck, User, Mail, LogOut, Edit2 } from 'lucide-react';
+import { useUniversities } from '@/components/contexts/UniversityContext';
 
 interface Stage {
   id: string;
@@ -18,19 +19,6 @@ interface StageIndicatorProps {
   userId: string;
   userProfile: any;
   onLogout?: () => void;
-}
-
-interface University {
-  id: string;
-  name: string;
-  country: string;
-  ranking: number;
-  tuitionFee: string;
-  programs: string[];
-  matchReason: string;
-  programRelevance: string;
-  fitScore?: number;
-  tradeoffs?: string;
 }
 
 // Updated stages structure
@@ -80,13 +68,19 @@ const defaultStages: Stage[] = [
 ];
 
 export default function StageIndicator({ currentStage, allStages, userId, userProfile, onLogout }: StageIndicatorProps) {
+  // Use shared context instead of local state
+  const { 
+    discoveredUniversities, 
+    shortlistedUniversities, 
+    setDiscoveredUniversities, 
+    setShortlistedUniversities 
+  } = useUniversities();
+
   const [stages, setStages] = useState<Stage[]>((allStages && allStages.length > 0) ? allStages : defaultStages);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showShortlist, setShowShortlist] = useState(false);
-  const [universities, setUniversities] = useState<University[]>([]);
-  const [shortlistedUniversities, setShortlistedUniversities] = useState<University[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userPriorities, setUserPriorities] = useState({
     cost: 50,
@@ -95,18 +89,9 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
     career: 50
   });
 
-  // Load saved data from localStorage on mount
+  // Load saved stages from localStorage on mount
   useEffect(() => {
-    const savedUniversities = localStorage.getItem(`universities_${userId}`);
-    const savedShortlist = localStorage.getItem(`shortlist_${userId}`);
     const savedStages = localStorage.getItem(`stages_${userId}`);
-
-    if (savedUniversities) {
-      setUniversities(JSON.parse(savedUniversities));
-    }
-    if (savedShortlist) {
-      setShortlistedUniversities(JSON.parse(savedShortlist));
-    }
     if (savedStages) {
       setStages(JSON.parse(savedStages));
     }
@@ -147,7 +132,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
     if (stage.id === 'university-discovery') {
       setShowDiscovery(true);
       // Don't auto-fetch if we already have universities
-      if (universities.length === 0) {
+      if (discoveredUniversities.length === 0) {
         await discoverUniversities();
       }
     }
@@ -163,7 +148,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
       
       setShowShortlist(true);
       // Don't auto-fetch if we already have shortlist
-      if (shortlistedUniversities.length === 0 && universities.length > 0) {
+      if (shortlistedUniversities.length === 0 && discoveredUniversities.length > 0) {
         await handleShortlist();
       }
     }
@@ -181,10 +166,9 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
       if (!response.ok) throw new Error('Failed to discover universities');
 
       const data = await response.json();
-      setUniversities(data.universities);
       
-      // Save to localStorage
-      localStorage.setItem(`universities_${userId}`, JSON.stringify(data.universities));
+      // Use context setter instead of local setState
+      setDiscoveredUniversities(data.universities);
       
       // Mark discovery stage as completed
       updateStageStatus('university-discovery', 'completed');
@@ -206,7 +190,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId, 
-          universities,
+          universities: discoveredUniversities, // Use context state
           priorities: userPriorities,
           userProfile 
         })
@@ -217,10 +201,8 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
       const data = await response.json();
       console.log('✅ Shortlist response:', data);
       
+      // Use context setter instead of local setState
       setShortlistedUniversities(data.shortlist);
-      
-      // Save to localStorage
-      localStorage.setItem(`shortlist_${userId}`, JSON.stringify(data.shortlist));
       
       // Mark shortlist stage as completed
       updateStageStatus('university-shortlist', 'completed');
@@ -237,7 +219,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
   };
 
   const handleCompleteDiscovery = () => {
-    if (universities.length === 0) {
+    if (discoveredUniversities.length === 0) {
       alert('Please discover universities first!');
       return;
     }
@@ -568,7 +550,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                   <p className="text-gray-600">Discovering universities for you...</p>
                 </div>
-              ) : universities.length === 0 ? (
+              ) : discoveredUniversities.length === 0 ? (
                 <div className="text-center py-12">
                   <University className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600">Click the button below to discover universities</p>
@@ -581,7 +563,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {universities.map((uni) => (
+                  {discoveredUniversities.map((uni) => (
                     <div
                       key={uni.id}
                       className="p-5 bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
@@ -626,7 +608,7 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
             <div className="p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={handleCompleteDiscovery}
-                disabled={universities.length === 0}
+                disabled={discoveredUniversities.length === 0}
                 className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <CheckCircle className="w-5 h-5" />
@@ -638,149 +620,148 @@ export default function StageIndicator({ currentStage, allStages, userId, userPr
       )}
 
       {/* Shortlisting Modal */}
-{showShortlist && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Filter className="w-6 h-6 text-blue-600" />
-              University Shortlist
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Your top recommendations based on priorities
-            </p>
-          </div>
-          <button
-            onClick={() => setShowShortlist(false)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-      </div>
-
-      {/* Priority Sliders */}
-      <div className="p-6 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Adjust Your Priorities</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {Object.entries(userPriorities).map(([key, value]) => (
-            <div key={key}>
-              <label className="text-xs font-medium text-gray-700 capitalize block mb-2 flex items-center justify-between">
-                <span>{key === 'cost' ? 'Cost Sensitivity' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                <span className="text-blue-600 font-bold">{value}%</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="10"
-                value={value}
-                onChange={(e) => {
-                  const newValue = parseInt(e.target.value);
-                  setUserPriorities(prev => ({ ...prev, [key]: newValue }));
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-              />
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={handleShortlist}
-          disabled={isLoading}
-          className="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Updating...
-            </>
-          ) : (
-            <>
-              <TrendingUp className="w-4 h-4" />
-              Update Shortlist
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className="p-6 overflow-y-auto max-h-[calc(90vh-400px)]">
-        {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Analyzing best matches...</p>
-          </div>
-        ) : shortlistedUniversities.length === 0 ? (
-          <div className="text-center py-12">
-            <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600">Click "Update Shortlist" to generate your personalized recommendations</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {shortlistedUniversities.map((uni, index) => (
-              <div
-                key={uni.id}
-                className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 hover:shadow-lg transition-all"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white font-bold rounded-full text-sm">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{uni.name}</h3>
-                      <p className="text-sm text-gray-600">{uni.country}</p>
-                    </div>
-                  </div>
-                  <TrendingUp className="w-5 h-5 text-green-600" />
+      {showShortlist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <Filter className="w-6 h-6 text-blue-600" />
+                    University Shortlist
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Your top recommendations based on priorities
+                  </p>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="bg-white p-2 rounded-lg text-center">
-                    <p className="text-xs text-gray-600">Rank</p>
-                    <p className="font-bold text-gray-900">#{uni.ranking}</p>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg text-center">
-                    <p className="text-xs text-gray-600">Fee</p>
-                    <p className="font-bold text-gray-900 text-xs">{uni.tuitionFee}</p>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg text-center">
-                    <p className="text-xs text-gray-600">Fit</p>
-                    <p className="font-bold text-green-600">{uni.fitScore || 95}%</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <p className="text-gray-700"><span className="font-semibold">Why shortlisted:</span> {uni.matchReason}</p>
-                  <p className="text-blue-700"><span className="font-semibold">Key advantage:</span> {uni.programRelevance}</p>
-                  {uni.tradeoffs && (
-                    <p className="text-orange-700"><span className="font-semibold">Trade-offs:</span> {uni.tradeoffs}</p>
-                  )}
-                </div>
+                <button
+                  onClick={() => setShowShortlist(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
               </div>
-            ))}
+            </div>
+
+            {/* Priority Sliders */}
+            <div className="p-6 bg-gray-50 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Adjust Your Priorities</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(userPriorities).map(([key, value]) => (
+                  <div key={key}>
+                    <label className="text-xs font-medium text-gray-700 capitalize block mb-2 flex items-center justify-between">
+                      <span>{key === 'cost' ? 'Cost Sensitivity' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                      <span className="text-blue-600 font-bold">{value}%</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="10"
+                      value={value}
+                      onChange={(e) => {
+                        const newValue = parseInt(e.target.value);
+                        setUserPriorities(prev => ({ ...prev, [key]: newValue }));
+                      }}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleShortlist}
+                disabled={isLoading}
+                className="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="w-4 h-4" />
+                    Update Shortlist
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-400px)]">
+              {isLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Analyzing best matches...</p>
+                </div>
+              ) : shortlistedUniversities.length === 0 ? (
+                <div className="text-center py-12">
+                  <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600">Click "Update Shortlist" to generate your personalized recommendations</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {shortlistedUniversities.map((uni, index) => (
+                    <div
+                      key={uni.id}
+                      className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 hover:shadow-lg transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white font-bold rounded-full text-sm">
+                            {index + 1}
+                          </span>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{uni.name}</h3>
+                            <p className="text-sm text-gray-600">{uni.country}</p>
+                          </div>
+                        </div>
+                        <TrendingUp className="w-5 h-5 text-green-600" />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="bg-white p-2 rounded-lg text-center">
+                          <p className="text-xs text-gray-600">Rank</p>
+                          <p className="font-bold text-gray-900">#{uni.ranking}</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg text-center">
+                          <p className="text-xs text-gray-600">Fee</p>
+                          <p className="font-bold text-gray-900 text-xs">{uni.tuitionFee}</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg text-center">
+                          <p className="text-xs text-gray-600">Fit</p>
+                          <p className="font-bold text-green-600">{uni.fitScore || 95}%</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <p className="text-gray-700"><span className="font-semibold">Why shortlisted:</span> {uni.matchReason}</p>
+                        <p className="text-blue-700"><span className="font-semibold">Key advantage:</span> {uni.programRelevance}</p>
+                        {uni.tradeoffs && (
+                          <p className="text-orange-700"><span className="font-semibold">Trade-offs:</span> {uni.tradeoffs}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <p className="text-sm text-gray-600 mb-3">
+                <span className="font-semibold">Next step:</span> Review these universities and prepare your application materials.
+              </p>
+              <button
+                onClick={handleCompleteShortlist}
+                disabled={shortlistedUniversities.length === 0}
+                className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Confirm Shortlist & Proceed
+              </button>
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="p-6 border-t border-gray-200 bg-gray-50">
-        <p className="text-sm text-gray-600 mb-3">
-          <span className="font-semibold">Next step:</span> Review these universities and prepare your application materials.
-        </p>
-        <button
-          onClick={handleCompleteShortlist}
-          disabled={shortlistedUniversities.length === 0}
-          className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <CheckCircle className="w-5 h-5" />
-          Confirm Shortlist & Proceed
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
+        </div>
+      )}
     </>
   );
 }
