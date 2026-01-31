@@ -49,20 +49,20 @@ export default function ActionsPanel({ userUniversities, universities }: Actions
             <p className="text-sm text-gray-500">No universities shortlisted yet</p>
           ) : (
             shortlisted.map(uni => {
-              const name = getUniversityName(uni.universityId || uni.university_id);
+              const name = getUniversityName(uni.university_id || uni.university_id);
               console.log('🏫 Rendering shortlisted university:', { 
                 id: uni.id, 
-                universityId: uni.universityId || uni.university_id,
+                universityId: uni.university_id || uni.university_id,
                 name,
-                hasUniversity: !!uni.university
+                hasUniversity: !!uni.university_id
               });
               
               return (
                 <div key={uni.id} className="text-sm text-gray-700 p-3 bg-gray-50 rounded border border-gray-200">
                   <div className="font-medium">{name}</div>
-                  {uni.university && (
+                  {uni.university_id && (
                     <div className="text-xs text-gray-500 mt-1">
-                      {uni.university.country} • Rank #{uni.university.ranking}
+                      {uni.university.country} • Rank #{uni.university_id.ranking}
                     </div>
                   )}
                 </div>
